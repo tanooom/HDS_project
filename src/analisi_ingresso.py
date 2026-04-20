@@ -11,10 +11,23 @@ warnings.filterwarnings('ignore') # Nasconde i warning fastidiosi di Python
 # ==========================================
 # 1. CARICAMENTO E PREPARAZIONE DATI
 # ==========================================
+import os
+
 print("Caricamento dati e traduzione in corso...")
 
-df_imm = pd.read_csv('../raw_data/bdg_serie_immatricolati.csv', sep=None, engine='python', encoding='latin1')
-df_cod = pd.read_csv('../raw_data/cod_foet2013.csv', sep=None, engine='python', encoding='latin1')
+# Calcoliamo il percorso esatto in modo dinamico
+# 1. Trova la cartella dove si trova questo script (src)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+# 2. Crea il percorso per la cartella raw_data
+raw_data_dir = os.path.join(script_dir, '..', 'raw_data')
+
+# 3. Creiamo i percorsi per i due file
+file_imm = os.path.join(raw_data_dir, 'bdg_serie_immatricolati.csv')
+file_cod = os.path.join(raw_data_dir, 'cod_foet2013.csv')
+
+# Carichiamo i dati usando i percorsi assoluti
+df_imm = pd.read_csv(file_imm, sep=None, engine='python', encoding='latin1')
+df_cod = pd.read_csv(file_cod, sep=None, engine='python', encoding='latin1')
 
 # PULIZIA COLONNE: Rimuoviamo eventuali spazi vuoti invisibili dai titoli
 df_imm.columns = df_imm.columns.str.strip()
