@@ -100,67 +100,56 @@ plt.savefig('piramide_stem.png', dpi=300)
 print("-> Immagine salvata come 'piramide_stem.png'")
 
 # ==========================================
-# 4. GRAFICO 2 E TABELLA: MAPPA GEOGRAFICA DEL GAP
+# 4. GRAFICO 2: CLASSIFICA REGIONALE (Il Paradosso Meridionale)
 # ==========================================
-print("\nElaborazione Dati Regionali...")
+print("\nElaborazione Dati Regionali e Grafico a Barre...")
 
-# Per la mappa escludiamo il "TOTALE", le voci vuote e gli Atenei Telematici/Estero
+# Escludiamo il "TOTALE", le voci vuote e gli Atenei Telematici/Estero
 df_regioni = df_base[
     (df_base['AteneoCOD'] != 'TTTTT') & 
     (df_base['AteneoREGIONE'].notna()) &
     (~df_base['AteneoREGIONE'].isin(['TELEMATICI', 'ESTERO']))
 ]
 
-# Raggruppiamo i dati per Regione e calcoliamo quante donne sono nelle STEM
+# Calcoliamo le percentuali
 tab_reg = df_regioni.groupby(['AteneoREGIONE', 'Genere', 'is_STEM'])['IMM'].sum().reset_index()
-
-# Isoliamo i dati STEM
 stem_reg = tab_reg[tab_reg['is_STEM'] == True]
 stem_pivot = stem_reg.pivot(index='AteneoREGIONE', columns='Genere', values='IMM').fillna(0)
 stem_pivot['Totale_STEM'] = stem_pivot['F'] + stem_pivot['M']
 stem_pivot['Percentuale_Donne_STEM'] = (stem_pivot['F'] / stem_pivot['Totale_STEM']) * 100
 stem_pivot['Percentuale_Uomini_STEM'] = (stem_pivot['M'] / stem_pivot['Totale_STEM']) * 100
 
-# --- Generazione File CSV Regionale (ORA MESSO NEL POSTO GIUSTO) ---
+# Salviamo il file CSV
 output_df = stem_pivot[['Totale_STEM', 'F', 'M', 'Percentuale_Donne_STEM', 'Percentuale_Uomini_STEM']].copy()
 output_df = output_df.sort_values('Percentuale_Donne_STEM', ascending=False).round(2)
 output_df.to_csv('percentuali_regionali_stem.csv', sep=';')
 print("-> File 'percentuali_regionali_stem.csv' generato con successo!")
 
-# --- Generazione Mappa ---
-print("Generazione Mappa dell'Italia in corso...")
-stem_pivot = stem_pivot.reset_index()
+# --- CREAZIONE DEL GRAFICO A BARRE ---
+# Ordiniamo in modo crescente per avere il valore più alto in cima al grafico
+df_plot = output_df.sort_values('Percentuale_Donne_STEM', ascending=True)
 
-# Correggiamo i nomi delle regioni del MUR per farli combaciare col GeoJSON internazionale
-correzioni_regioni = {
-    'Trentino Alto Adige': 'Trentino-Alto Adige/Südtirol',
-    'Friuli Venezia Giulia': 'Friuli-Venezia Giulia',
-    'Emilia Romagna': 'Emilia-Romagna',
-    "Valle d'Aosta": "Valle d'Aosta/Vallée d'Aoste"
-}
-stem_pivot['AteneoREGIONE'] = stem_pivot['AteneoREGIONE'].replace(correzioni_regioni)
+fig, ax = plt.subplots(figsize=(10, 8))
 
-# Scarichiamo i confini dell'Italia (GeoJSON)
-url_geojson = 'https://raw.githubusercontent.com/openpolis/geojson-italy/master/geojson/limits_IT_regions.geojson'
-italy_geojson = requests.get(url_geojson).json()
+# Disegniamo le barre
+barre = ax.barh(df_plot.index, df_plot['Percentuale_Donne_STEM'], color='#8e44ad', height=0.7)
 
-# Creiamo la mappa interattiva
-fig_map = px.choropleth_mapbox(
-    stem_pivot,
-    geojson=italy_geojson,
-    locations='AteneoREGIONE',
-    featureidkey='properties.reg_name',
-    color='Percentuale_Donne_STEM',
-    color_continuous_scale="Reds_r", # Più è rosso intenso, più mancano donne
-    range_color=[25, 45], # Il range percentuale medio
-    mapbox_style="carto-positron",
-    zoom=4.5, 
-    center={"lat": 41.8719, "lon": 12.5674},
-    opacity=0.7,
-    labels={'Percentuale_Donne_STEM': '% Donne in STEM'},
-    title="Gap di Genere nelle STEM per Regione (Meno è rosso scuro, peggio è)"
-)
+# Calcoliamo e disegniamo la linea della Media Nazionale (38%)
+media_nazionale = (f_stem / (f_stem + m_stem)) * 100
+ax.axvline(media_nazionale, color='#e74c3c', linestyle='--', linewidth=2, label=f'Media Nazionale ({media_nazionale:.1f}%)')
 
-# Apriamo la mappa nel browser
-print("-> Apertura mappa nel browser. Puoi interagire con il mouse!")
-fig_map.show()
+# Aggiungiamo i numeretti esatti alla fine di ogni barra
+for barra in barre:
+    larghezza = barra.get_width()
+    ax.text(larghezza + 0.5, barra.get_y() + barra.get_height()/2, f'{larghezza:.1f}%', 
+            ha='left', va='center', fontsize=10)
+
+ax.set_title('Percentuale di Donne Iscritte in STEM per Regione (2024/2025)', fontsize=14, pad=20)
+ax.set_xlabel('% Donne su Totale Iscritti STEM')
+ax.set_xlim(0, 55) # Diamo spazio per non far tagliare i numeri a destra
+ax.legend(loc='lower right')
+ax.grid(axis='x', linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+plt.savefig('barre_regionali_stem.png', dpi=300)
+print("-> Immagine salvata come 'barre_regionali_stem.png'")
