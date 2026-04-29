@@ -113,63 +113,70 @@ donne = [f_non_stem, f_stem]
 
 fig, ax = plt.subplots(figsize=(10, 6))
 
-# Disegniamo le barre (Uomini a sinistra come negativi, Donne a destra come positivi)
+#disegno delle barre (uomini a sx in negativo, donnea dx in positivo)
 ax.barh(categorie, [-val for val in uomini], color='#2980b9', label='Uomini', height=0.6)
 ax.barh(categorie, donne, color='#e74c3c', label='Donne', height=0.6)
 
-# Formattazione per rendere i numeri negativi leggibili come positivi sull'asse
+#formattazione dei numeri negativi in modo da renderli come positivi lungo l'asse
 ticks = ax.get_xticks()
 ax.set_xticklabels([f"{abs(int(tick/1000))}k" for tick in ticks])
 
 ax.set_title('Piramide della Segregazione Formativa (Immatricolati 2024/2025)', fontsize=14, pad=20)
-ax.axvline(0, color='black', linewidth=1) # Linea centrale
+ax.axvline(0, color='black', linewidth=1) #linea centrale
 ax.legend(loc='lower right')
-plt.tight_layout()
+plt.tight_layout()#evita tagli del grafico
 
-# Salviamo l'immagine nella cartella src
+#salvata immagine in src
 plt.savefig('piramide_stem.png', dpi=300)
-print("-> Immagine salvata come 'piramide_stem.png'")
 
-# ==========================================
-# 4. GRAFICO 2: CLASSIFICA REGIONALE (Il Paradosso Meridionale)
-# ==========================================
-print("\nElaborazione Dati Regionali e Grafico a Barre...")
 
-# Escludiamo il "TOTALE", le voci vuote e gli Atenei Telematici/Estero
+#Parte Dati Regionali
+
+
+#dovendo prendere i dati regionali, rimuovo la colonnad del totale (e rimuovo anche gli atenei telematici e all'estero)
 df_regioni = df_base[
     (df_base['AteneoCOD'] != 'TTTTT') & 
     (df_base['AteneoREGIONE'].notna()) &
     (~df_base['AteneoREGIONE'].isin(['TELEMATICI', 'ESTERO']))
 ]
 
-# Calcoliamo le percentuali
+#al fine di ottenere le percentuali di donne nelle varie università, raggruppo il tutto per genere, regione e materia
+# poi conto il numero di immatricolati vi sono nel raggruppamento
 tab_reg = df_regioni.groupby(['AteneoREGIONE', 'Genere', 'is_STEM'])['IMM'].sum().reset_index()
+
+#faccio in modo che vengano ignorati tutti coloro che non fanno parte delle stem
 stem_reg = tab_reg[tab_reg['is_STEM'] == True]
+
+#creo una tabella pivot
 stem_pivot = stem_reg.pivot(index='AteneoREGIONE', columns='Genere', values='IMM').fillna(0)
+
+#sommo il numero di studenti iscritti alle università per ogni regione
 stem_pivot['Totale_STEM'] = stem_pivot['F'] + stem_pivot['M']
+
+#calcolo delle percentuali di donne ed uomini nelle stem
 stem_pivot['Percentuale_Donne_STEM'] = (stem_pivot['F'] / stem_pivot['Totale_STEM']) * 100
 stem_pivot['Percentuale_Uomini_STEM'] = (stem_pivot['M'] / stem_pivot['Totale_STEM']) * 100
 
-# Salviamo il file CSV
+
 output_df = stem_pivot[['Totale_STEM', 'F', 'M', 'Percentuale_Donne_STEM', 'Percentuale_Uomini_STEM']].copy()
 output_df = output_df.sort_values('Percentuale_Donne_STEM', ascending=False).round(2)
 output_df.to_csv('percentuali_regionali_stem.csv', sep=';')
-print("-> File 'percentuali_regionali_stem.csv' generato con successo!")
 
-# --- CREAZIONE DEL GRAFICO A BARRE ---
-# Ordiniamo in modo crescente per avere il valore più alto in cima al grafico
+
+
+#ordinamento crescente in modo da avere la regione con percentuale più alta come prima
 df_plot = output_df.sort_values('Percentuale_Donne_STEM', ascending=True)
 
 fig, ax = plt.subplots(figsize=(10, 8))
 
-# Disegniamo le barre
+#disegno le barre orizzontali di ogni regione (la lunghezza data ovviamente dalla %)
 barre = ax.barh(df_plot.index, df_plot['Percentuale_Donne_STEM'], color='#8e44ad', height=0.7)
 
-# Calcoliamo e disegniamo la linea della Media Nazionale (38%)
+#calcolo della media nazionale
 media_nazionale = (f_stem / (f_stem + m_stem)) * 100
 ax.axvline(media_nazionale, color='#e74c3c', linestyle='--', linewidth=2, label=f'Media Nazionale ({media_nazionale:.1f}%)')
 
-# Aggiungiamo i numeretti esatti alla fine di ogni barra
+#aggiungo il numero della % alla fine di ogni barra
 for barra in barre:
     larghezza = barra.get_width()
     ax.text(larghezza + 0.5, barra.get_y() + barra.get_height()/2, f'{larghezza:.1f}%', 
@@ -183,4 +190,3 @@ ax.grid(axis='x', linestyle='--', alpha=0.5)
 
 plt.tight_layout()
 plt.savefig('barre_regionali_stem.png', dpi=300)
-print("-> Immagine salvata come 'barre_regionali_stem.png'")
