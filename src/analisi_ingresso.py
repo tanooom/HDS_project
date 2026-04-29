@@ -6,76 +6,107 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import requests
 import warnings
-warnings.filterwarnings('ignore') # Nasconde i warning fastidiosi di Python
-
-# ==========================================
-# 1. CARICAMENTO E PREPARAZIONE DATI
-# ==========================================
+warnings.filterwarnings('ignore') 
 import os
 
-print("Caricamento dati e traduzione in corso...")
-
-# Calcoliamo il percorso esatto in modo dinamico
-# 1. Trova la cartella dove si trova questo script (src)
+#calcolo del path della cartella attuale src e creazione di path per raw_data
 script_dir = os.path.dirname(os.path.abspath(__file__))
-# 2. Crea il percorso per la cartella raw_data
 raw_data_dir = os.path.join(script_dir, '..', 'raw_data')
 
-# 3. Creiamo i percorsi per i due file
+#prendiamo dai dataset quelli di interesse per effettuare le analisi relative agli ingressi
 file_imm = os.path.join(raw_data_dir, 'bdg_serie_immatricolati.csv')
+#il seguente file viene usato come 'traduzione' in modo da selezionare soltanto le materie STEM.
 file_cod = os.path.join(raw_data_dir, 'cod_foet2013.csv')
 
-# Carichiamo i dati usando i percorsi assoluti
+#caricamento dei dati
 df_imm = pd.read_csv(file_imm, sep=None, engine='python', encoding='latin1')
 df_cod = pd.read_csv(file_cod, sep=None, engine='python', encoding='latin1')
 
-# PULIZIA COLONNE: Rimuoviamo eventuali spazi vuoti invisibili dai titoli
+#effettuiamo pulizia delle colonne per eliminare eventuali spazi vuoti
 df_imm.columns = df_imm.columns.str.strip()
 df_cod.columns = df_cod.columns.str.strip()
 
-# Identificazione codici STEM
+#in questa parte dello script si vanno a selezionare le lauree appartenenti all'area stem
+#viene isolata la colonna area stem e vengono selezionate soltanto quelle con 'si'
 df_cod['Area STEM'] = df_cod['Area STEM'].astype(str).str.strip().str.lower()
-stem_prefixes = df_cod[df_cod['Area STEM'].isin(['sì', 'si', 'yes', 'y'])]['ISCED_F_1dgt'].astype(str).str.lstrip('0').unique()
 
-# Pulizia dataset immatricolati
+#prendiamo solo la colonna con il codice identificativo internazionale (senza doppioni)
+stem_prefixes = df_cod[df_cod['Area STEM'].isin(['sì', 'si'])]['ISCED_F_1dgt'].astype(str).str.lstrip('0').unique()
+
+#il codice dei corsi di laurea viene trasformato da un codice a due cifre in un codice a due cifre
 df_imm['COD_FoET2013_clean'] = df_imm['COD_FoET2013'].astype(str).str.lstrip('0')
+#qui creiamo una nuova colonna grazie al quale verifichiamo se uno studente appartiene ad una classe di laurea stem
 df_imm['is_STEM'] = df_imm['COD_FoET2013_clean'].isin(stem_prefixes)
 
-# Filtro Base: Anno corrente e Solo Lauree di primo livello/ciclo unico
+
+#applichiamo il filtro andando selezionare soltanto laurea e magistrale a ciclo unico
+#non vengono selezionate lauree magistrali biennali, perché come specificato nella relazione, l'intento è stato quello di
+#identificare e analizzare gli ingressi subito dopo la fine delle superiori
 df_base = df_imm[
     (df_imm['ANNO'] == '2024/2025') & 
     (df_imm['CorsoTIPO'].isin(['Laurea', 'Laurea Magistrale Ciclo Unico']))
 ]
 
-# ==========================================
-# 2. ANALISI NAZIONALE (IL TUO Z-TEST E CHI-QUADRO)
-# ==========================================
-# Prendiamo solo la riga del Totale Nazionale
+#TEST CHIQUADRO E Z-TEST
+
+#creiamo un file chiamato df_nazionale in cui andiamo a prendere solo la colonna TTTTT
+#il ministero inserisce questa colonna, per comodità, in cui si trova il totale nazionale
 df_nazionale = df_base[df_base['AteneoCOD'] == 'TTTTT']
+
+#prendiamo i dati e li divide in 4 catgegorie
+# Uomini che fanno STEM, Uomini che non fanno STEM, Donne che fanno STEM e donne che non fanno STEM
+#infine conta quanti immatricolati vi sono in ogni sezione
 tabella_nat = df_nazionale.groupby(['Genere', 'is_STEM'])['IMM'].sum().unstack(fill_value=0)
 tabella_nat.columns = ['Non_STEM', 'STEM']
 
+#salva i vari dati in delle variabili 
 f_stem = tabella_nat.loc['F', 'STEM']
 f_non_stem = tabella_nat.loc['F', 'Non_STEM']
 m_stem = tabella_nat.loc['M', 'STEM']
 m_non_stem = tabella_nat.loc['M', 'Non_STEM']
 
-print("\n--- TEST STATISTICI COMPLETATI ---")
+
 # Chi-Quadro
+#lo utilizziamo per comprendere se il genere e la scelta dell'università (in questo caso stem)
+#sono due fenomeni collegati tra loro o magari sono completamente indipendenti
+
+#Il test sostanzialmente è come se creasse una sorta di mondo ideale in cui prende il totale degli studenti e immagina
+# come sarebbero distribuiti uomini e donne se scegliessero i corsi esattamente nello stesso modo, senza stereotipo di genere
+# i dati risultanti prendono il nome di valori attesi, che infine vengono paragonati ai valori reali e ne viene misurata la distanza
+
+#se i numeri reali sono molto diversi dai digitali il chi quadro tende ad essere alto.
+#il p-value ci dice sostanzialmente se questa enorme differenza tra uomini e donne è soltanto casuale o meno
+
+#prendo in dati isolati in precedenza e li metto in una matrice 2x2
 obs = np.array([[f_stem, f_non_stem], [m_stem, m_non_stem]])
+#ottengo il valore del chi quadro e il p-value
 chi2_stat, p_val_chi2, _, _ = chi2_contingency(obs)
+
+#2e per stampa in notazione scientifica
 print(f"P-value Chi-Quadrato: {p_val_chi2:.2e}")
 
+
+
 # Z-Test
+# per individuare se effettivamente la % di donne stem è statisticamente differente da quella di donne che non sono nelle stem
+#anche qui, se il p-value è basso vuol dire che la differenza tra le due percentuali è abbastanza grande e non è soltanto un caso.
+
+
+#creo un array al cui interno inserisco soltanto i numeri relativi alle iscrizione di donne
 count = np.array([f_stem, f_non_stem]) 
-nobs = np.array([f_stem + m_stem, f_non_stem + m_non_stem]) 
+
+#vado a sommare le donne e i maschi iscritti a stem e non iscritti a stem
+nobs = np.array([f_stem + m_stem, f_non_stem + m_non_stem])
+
+#prendo il numero di donne e lo divido per il totale
+#percentuale iscritti stem è donne, percentuali di iscritti non-stem è donna
+#il test infine confronta le due percentuali e calcola il valore finale
 z_stat, p_val_z = proportions_ztest(count, nobs)
 print(f"P-value Z-Test: {p_val_z:.2e}")
 
-# ==========================================
-# 3. GRAFICO 1: PIRAMIDE DELLE ISCRIZIONI (Tornado Chart)
-# ==========================================
-print("\nGenerazione Piramide delle Iscrizioni...")
+
+
+#Piramide delle iscrizioni
 categorie = ['Area NON-STEM\n(Umanistica, Sociale, ecc.)', 'Area STEM\n(Scienze, Ingegneria, ecc.)']
 uomini = [m_non_stem, m_stem]
 donne = [f_non_stem, f_stem]
