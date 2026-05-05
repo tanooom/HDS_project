@@ -80,7 +80,7 @@ m_non_stem = tabella_nat.loc['M', 'Non_STEM']
 #prendo in dati isolati in precedenza e li metto in una matrice 2x2
 obs = np.array([[f_stem, f_non_stem], [m_stem, m_non_stem]])
 #ottengo il valore del chi quadro e il p-value
-chi2_stat, p_val_chi2, _, _ = chi2_contingency(obs)
+chi2_stat, p_val_chi2, dof, expected = chi2_contingency(obs)
 
 #2e per stampa in notazione scientifica
 print(f"P-value Chi-Quadrato: {p_val_chi2:.2e}")
@@ -190,3 +190,51 @@ ax.grid(axis='x', linestyle='--', alpha=0.5)
 
 plt.tight_layout()
 plt.savefig('barre_regionali_stem.png', dpi=300)
+
+# ---------------------------------------------------------
+# STAMPE AGGIUNTIVE: Estrazione di tutti i valori utili
+# ---------------------------------------------------------
+
+tot_f = f_stem + f_non_stem
+tot_m = m_stem + m_non_stem
+tot_generale = tot_f + tot_m
+tot_stem = f_stem + m_stem
+
+print("\n" + "="*50)
+print("RECAP DATI ASSOLUTI NAZIONALI")
+print("="*50)
+print(f"Popolazione totale analizzata: {tot_generale:,}")
+print(f"Totale Immatricolate Donne: {tot_f:,}")
+print(f"Totale Immatricolati Uomini: {tot_m:,}")
+print(f"Totale Iscritti STEM: {tot_stem:,}")
+print(f"  - Di cui Donne: {f_stem:,}")
+print(f"  - Di cui Uomini: {m_stem:,}")
+
+print("\n" + "="*50)
+print("PERCENTUALI E PROPORZIONI (I tuoi numeri chiave!)")
+print("="*50)
+print(f"Prevalenza femminile totale negli atenei: {(tot_f / tot_generale) * 100:.1f}%")
+print(f"Quota Donne sul totale STEM (Media Nazionale): {media_nazionale:.1f}%")
+print(f"Percentuale di DONNE che sceglie STEM: {(f_stem / tot_f) * 100:.1f}%")
+print(f"Percentuale di UOMINI che sceglie STEM: {(m_stem / tot_m) * 100:.1f}%")
+print(f"Divario netto (Gap propensione STEM): {abs((m_stem / tot_m) - (f_stem / tot_f)) * 100:.1f} punti percentuali")
+
+print("\n" + "="*50)
+print("DETTAGLI DEI TEST STATISTICI")
+print("="*50)
+print(f"Statistica Chi-Quadrato (\u03C7\u00B2): {chi2_stat:.2f}")
+print("Matrice Frequenze Attese (il 'mondo ideale' del Chi-Quadrato):")
+print(f"  - Donne in STEM (attese): {expected[0][0]:.0f} vs Reali: {f_stem}")
+print(f"  - Uomini in STEM (attesi): {expected[1][0]:.0f} vs Reali: {m_stem}")
+print(f"Z-Score (Z-Test): {z_stat:.2f}")
+
+print("\n" + "="*50)
+print("DATI REGIONALI (Paradosso Meridionale)")
+print("="*50)
+regione_max = output_df.index[0]
+valore_max = output_df['Percentuale_Donne_STEM'].iloc[0]
+regione_min = output_df.index[-1]
+valore_min = output_df['Percentuale_Donne_STEM'].iloc[-1]
+
+print(f"Regione con piu' partecipazione femminile: {regione_max} ({valore_max:.1f}%)")
+print(f"Regione con minor partecipazione femminile: {regione_min} ({valore_min:.1f}%)")
